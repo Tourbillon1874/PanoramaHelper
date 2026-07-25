@@ -8,7 +8,7 @@ import io
 import shutil
 
 
-CURRENT_VERSION = "1.0.0"
+CURRENT_VERSION = "1.0.2"
 
 PACKAGE_NAME = __name__
 PLUGIN_DIR = os.path.dirname(os.path.abspath(__file__))
