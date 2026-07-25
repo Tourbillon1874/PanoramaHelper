@@ -135,22 +135,20 @@ def fix_left_right_seam(image, overlap_width=256, expand=-120, blur_radius=48.0)
     pad_right = std_width - overlap_width
     layer_img = F.pad(edge_strip, (0, 0, 0, pad_right, 0, 0), mode='constant', value=0.0)
 
-    mask = torch.zeros(B, H, std_width, 1, device=image.device, dtype=image.dtype)
-    mask[:, :, :overlap_width, :] = 1.0
+    shrink = abs(expand)
+    transition_total = 5.0 * blur_radius
+    transition_half = transition_total / 2.0
 
-    shrink = int(abs(expand))
-    if expand < 0 and shrink < overlap_width:
-        mask[:, :, overlap_width - shrink:overlap_width, :] = 0.0
+    end_pos = overlap_width - shrink + 2.5 * blur_radius
+    start_pos = end_pos - transition_total
 
-    if blur_radius > 0:
-        mask_np = (mask.squeeze(-1).cpu().numpy() * 255.0).astype(np.uint8)
-        blurred_list = []
-        for i in range(B):
-            pil_mask = Image.fromarray(mask_np[i], mode='L')
-            pil_mask = pil_mask.filter(ImageFilter.GaussianBlur(blur_radius))
-            blurred_np = np.array(pil_mask).astype(np.float32) / 255.0
-            blurred_list.append(torch.from_numpy(blurred_np).unsqueeze(-1))
-        mask = torch.stack(blurred_list, dim=0).to(device=image.device, dtype=image.dtype)
+    x = torch.arange(std_width, device=image.device, dtype=image.dtype)
+    t = (x - start_pos) / (end_pos - start_pos)
+    t = torch.clamp(t, 0.0, 1.0)
+    mask_1d = 0.5 * (1.0 + torch.cos(t * math.pi))
+
+    mask = mask_1d.view(1, 1, std_width, 1).expand(B, H, std_width, 1)
 
     result = main_img * (1 - mask) + layer_img * mask
+
     return result.clamp(0.0, 1.0)
